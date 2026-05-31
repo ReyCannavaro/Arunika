@@ -1,35 +1,48 @@
 import { lucia } from '$lib/server/auth';
-import type { Handle } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
+
+const PROTECTED_USER  = ['/dashboard', '/daftar', '/profil'];
+const PROTECTED_ADMIN = ['/admin'];
+const GUEST_ONLY = ['/login', '/register'];
 
 export const handle: Handle = async ({ event, resolve }) => {
-  const sessionId = event.cookies.get(lucia.sessionCookieName);
+	const sessionId = event.cookies.get(lucia.sessionCookieName);
 
-  if (!sessionId) {
-    event.locals.user = null;
-    event.locals.session = null;
-    return resolve(event);
-  }
+	if (!sessionId) {
+		event.locals.user = null;
+		event.locals.session = null;
+	} else {
+		const { session, user } = await lucia.validateSession(sessionId);
 
-  const { session, user } = await lucia.validateSession(sessionId);
+		if (session?.fresh) {
+			const cookie = lucia.createSessionCookie(session.id);
+			event.cookies.set(cookie.name, cookie.value, { path: '/', ...cookie.attributes });
+		}
+		if (!session) {
+			const cookie = lucia.createBlankSessionCookie();
+			event.cookies.set(cookie.name, cookie.value, { path: '/', ...cookie.attributes });
+		}
 
-  if (session && session.fresh) {
-    const sessionCookie = lucia.createSessionCookie(session.id);
-    event.cookies.set(sessionCookie.name, sessionCookie.value, {
-      path: '/',
-      ...sessionCookie.attributes
-    });
-  }
+		event.locals.user    = user;
+		event.locals.session = session;
+	}
 
-  if (!session) {
-    const sessionCookie = lucia.createBlankSessionCookie();
-    event.cookies.set(sessionCookie.name, sessionCookie.value, {
-      path: '/',
-      ...sessionCookie.attributes
-    });
-  }
+	const path = event.url.pathname;
 
-  event.locals.user = user;
-  event.locals.session = session;
+	if (!event.locals.user) {
+		if (PROTECTED_USER.some((p) => path.startsWith(p)) ||
+		    PROTECTED_ADMIN.some((p) => path.startsWith(p))) {
+			redirect(302, `/login?redirect=${encodeURIComponent(path)}`);
+		}
+	}
 
-  return resolve(event);
+	if (event.locals.user && GUEST_ONLY.some((p) => path.startsWith(p))) {
+		redirect(302, event.locals.user.role === 'admin' ? '/admin' : '/dashboard');
+	}
+
+	if (event.locals.user?.role === 'user' && PROTECTED_ADMIN.some((p) => path.startsWith(p))) {
+		redirect(302, '/dashboard');
+	}
+
+	return resolve(event);
 };
