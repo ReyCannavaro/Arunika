@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	let { user = null }: { user?: { username: string; role: string } | null } = $props();
 
@@ -14,7 +14,7 @@
 	});
 
 	$effect(() => {
-		$page.url.pathname;
+		page.url.pathname;
 		mobileOpen = false;
 	});
 </script>
@@ -68,7 +68,6 @@
 	</div>
 {/if}
 
-<!-- Spacer -->
 <div style="height: 88px;"></div>
 
 <style>
