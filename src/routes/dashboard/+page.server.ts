@@ -1,16 +1,9 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { tims, events, personils } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!locals.user) {
-		redirect(302, '/login');
-	}
-	if (locals.user.role === 'admin') {
-		redirect(302, '/admin');
-	}
+	const user = locals.user!;
 
 	const tim = await db
 		.select({
@@ -30,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		})
 		.from(tims)
 		.leftJoin(events, eq(tims.eventId, events.id))
-		.where(eq(tims.userId, locals.user.id))
+		.where(eq(tims.userId, user.id))
 		.limit(1)
 		.then((rows) => rows[0] ?? null);
 
@@ -42,16 +35,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		: [];
 
 	const activeEvent = !tim
-		? await db.query.events.findFirst({
-				where: eq(events.status, 'aktif'),
-		  }).catch(() => null)
+		? await db.query.events
+				.findFirst({ where: eq(events.status, 'aktif') })
+				.catch(() => null)
 		: null;
 
 	return {
 		user: {
-			id:       locals.user.id,
-			username: locals.user.username,
-			email:    locals.user.email,
+			id:       user.id,
+			username: user.username,
+			email:    user.email,
 		},
 		tim,
 		anggota,
